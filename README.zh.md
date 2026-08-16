@@ -74,14 +74,16 @@ python3 planner.py "随便什么任务"   # 目标留空 → 被 exit 2 拦截
 
 `evolve-agent/` 就是一个普通 Hermes skill 目录：`SKILL.md`（路由+说明）+ `scripts/`（真正的逻辑）。丢进 skills 目录，索引自动收录。确定性部分（校验、去重、patch）全在脚本里——**关键路径上不经过模型采样**。
 
-## 适用于任何 Agent 框架
+## 框架支持 — 先读这个
 
-**机制**是框架无关的——任何 LLM agent 都能用（三个脚本只碰普通文件和 OpenAI 兼容端点）。**默认配置**针对 Hermes；适配其他框架只需改两处：
+**✅ Hermes：下载即用，零配置。** 这是唯一的零二次开发承诺范围。
 
-| 脚本 | Hermes 默认 | 其他框架改什么 |
-|------|------------|---------------|
-| `learn.py` | 解析 `inbound message: text=...` 日志行 | 调整 `extract_user_message()` 正则为你的日志格式 |
-| `upgrade.py` | 找 `skills/<名字>/SKILL.md` | 调整 `find_skill()` 为你的 skill/知识目录结构 |
+**⚠️ 其他 agent 框架：机制能用，但你必须自己适配**（两处小改）：
+
+| 脚本 | Hermes 默认（零配置） | 其他框架：你要改什么 |
+|------|----------------------|---------------------|
+| `learn.py` | 解析 `inbound message: text=...` 日志行 | 重写 `extract_user_message()` 正则为你的日志格式 |
+| `upgrade.py` | 找 `skills/<名字>/SKILL.md` | 重写 `find_skill()` 为你的 skill/知识目录结构 |
 | `planner.py` | 无 | 无——天生框架无关 |
 
 全部通过 `HERMES_HOME` / `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` 环境变量配置。

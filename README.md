@@ -74,14 +74,16 @@ Blocked = working. That's it.
 
 `evolve-agent/` is a plain Hermes skill directory: `SKILL.md` (routing + instructions) + `scripts/` (the actual logic). Drop it into your skills dir and the index picks it up automatically. The deterministic parts (validation, dedup, patching) live in the scripts — **no model sampling on the critical path**.
 
-## Works With Any Agent Framework
+## Framework Support — Read This First
 
-The **mechanism** is framework-agnostic — any LLM agent can use it (the three scripts only talk to plain files + an OpenAI-compatible endpoint). The **defaults** target Hermes; adapting to another framework takes two small edits:
+**✅ Hermes: download & run, zero config.** That is the only zero-setup guarantee.
 
-| Script | Hermes default | What to change for other frameworks |
-|--------|---------------|-------------------------------------|
-| `learn.py` | parses `inbound message: text=...` log lines | adjust `extract_user_message()` regex to your log format |
-| `upgrade.py` | finds skills under `skills/<name>/SKILL.md` | adjust `find_skill()` to your skill/knowledge dir layout |
+**⚠️ Other agent frameworks: the mechanism works, but you MUST adapt it yourself** (two small edits):
+
+| Script | Hermes default (zero config) | Other frameworks: what you must change |
+|--------|------------------------------|----------------------------------------|
+| `learn.py` | parses `inbound message: text=...` log lines | rewrite `extract_user_message()` regex for your log format |
+| `upgrade.py` | finds skills under `skills/<name>/SKILL.md` | rewrite `find_skill()` for your skill/knowledge dir layout |
 | `planner.py` | nothing | nothing — framework-free by design |
 
 Everything is configurable via `HERMES_HOME` / `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` env vars.
