@@ -14,19 +14,25 @@
 
 试过「记忆系统」？残酷的事实：**记忆解决「记不记得」，解决不了「遵不遵守」**——这是两个完全不同的题。
 
-## 解法
+## 哲学：规则是代码，不是文档
 
-三个脚本，关上一个**自我进化闭环**：
+skill 文件是**文档**——它只有被模型读到、且模型决定遵守时才生效。不可靠。
 
-| 脚本 | 超能力 | 用法 |
-|------|--------|------|
-| `planner.py` | 任务前强制五步规划，**目标没写清直接拦下开工**（exit 2）——干掉「绕四小时」的失败模式 | `python3 planner.py "任务"` |
-| `learn.py` | 扫日志负面反馈 → AI 裁判判定成败 → **教训自动提炼入库** | `python3 learn.py --hours 24` |
-| `upgrade.py` | 教训 → **自动改进对应 skill**（幂等、只追加、不覆盖） | `python3 upgrade.py --apply` |
+**EvolveAgent 把教训变成代码。** 一条教训被编译成 guardrail 规则，**在任务执行前运行**，违反就**拦截（exit 2）**。不需要模型自觉——规则要么通过，要么不通过。
+
+## 4 个脚本 = 4 个环节
+
+| 脚本 | 环节 | 用法 |
+|------|------|------|
+| `planner.py` | 任务前强制五步规划，**目标没写清直接拦下开工**（exit 2） | `python3 planner.py "任务"` |
+| `learn.py` | 扫日志负面反馈 → AI 裁判判定 → **教训自动入库** | `python3 learn.py --hours 24` |
+| `upgrade.py` | 教训 → **编译成 guardrail 代码**（规则数据 + 检查函数） | `python3 upgrade.py --apply` |
+| `guardrail.py` | **执行前强制检查**：运行规则代码，违规 exit 2，教训清单输出给 agent 对照 | `python3 guardrail.py <类型> "任务"` |
 
 ```
-失败日志 → LLM 裁判 → lessons/<类型>.md → upgrade.py 自动 patch skill
-   → 下次任务读到净化的 skill → 不再犯同类错误 → 循环
+失败日志 → learn.py → lessons/<类型>.md → upgrade.py → guardrails/<类型>.py（代码）
+                                                          ↓
+             任务执行前：guardrail.py <类型> "任务" → 违规 = exit 2 拦截
 ```
 
 ## 安装（10 秒，零配置）
@@ -37,13 +43,16 @@ cp -r evolve-agent ~/.hermes/skills/
 
 # 可选：cron 每天自动进化
 #   0 1 * * *  learn.py --hours 24 && upgrade.py --apply
+# 可选：任务前强制检查（建议写进你 agent 工作流的第一步）
+#   python3 guardrail.py <类型> "<任务描述>"
 ```
 
 ## 30 秒验证有效
 
 ```bash
 cd evolve-agent/scripts
-python3 planner.py "随便什么任务"   # 目标留空 → 被 exit 2 拦截
+python3 planner.py "随便什么任务"      # 目标留空 → exit 2
+python3 guardrail.py ppt "做PPT"       # 描述过短 → exit 2
 ```
 
 被拦住 = 生效。就这么简单。
@@ -51,28 +60,15 @@ python3 planner.py "随便什么任务"   # 目标留空 → 被 exit 2 拦截
 ## 为什么有效（三句话）
 
 1. **系统一/系统二**（《思考，快与慢》）：本能行为代码化，真正要思考的才用 LLM
-2. **关键路径移出 LLM**：可靠性来自代码执行，不是模型自觉
-3. **失败是金子**：失败轨迹的反事实信号，比成功更值钱（ReasoningBank, ICLR 2026）
-
-## 配置（全部可选，默认零配置）
-
-| 环境变量 | 默认 | 说明 |
-|---------|------|------|
-| `HERMES_HOME` | `~/.hermes` | Hermes 数据目录 |
-| `LLM_BASE_URL` | `http://localhost:8080/v1` | 任意 OpenAI 兼容端点（Ollama/Gemma/DeepSeek/OpenAI/通义...） |
-| `LLM_API_KEY` | 空 | 空 = 本地免认证 |
-| `LLM_MODEL` | `qwen2.5:7b` | 裁判模型 |
+2. **关键路径移出 LLM**：可靠性来自代码执行，不是模型自觉——guardrail 是代码，违反必拦截
+3. **失败是金子**：失败教训编译成代码规则，下次执行前强制检查（ReasoningBank, ICLR 2026）
 
 ## 避坑（替你先踩过了）
 
 - AI 裁判 **70% 准确率就够**——别追求完美，追求迭代
 - 教训必须**可迁移**（「这类任务该怎么想」），不是「这次我做了什么」
-- **幂等必须有**——否则 skill 被同一教训反复污染
-- **只追加不覆盖**——净化是叠加改进，不是重写用户的 skill
-
-## 与 Hermes skill 模型的关系
-
-`evolve-agent/` 就是一个普通 Hermes skill 目录：`SKILL.md`（路由+说明）+ `scripts/`（真正的逻辑）。丢进 skills 目录，索引自动收录。确定性部分（校验、去重、patch）全在脚本里——**关键路径上不经过模型采样**。
+- **upgrade.py 写的是代码，不是文档**——往 md 文档追加教训，恰恰是这个包不做的事
+- 任务类型用**通用词**（ppt/pdf/research/code/image/data/chat），不绑定任何特定 skill 名
 
 ## 框架支持 — 先读这个
 
@@ -83,8 +79,8 @@ python3 planner.py "随便什么任务"   # 目标留空 → 被 exit 2 拦截
 | 脚本 | Hermes 默认（零配置） | 其他框架：你要改什么 |
 |------|----------------------|---------------------|
 | `learn.py` | 解析 `inbound message: text=...` 日志行 | 重写 `extract_user_message()` 正则为你的日志格式 |
-| `upgrade.py` | 找 `skills/<名字>/SKILL.md` | 重写 `find_skill()` 为你的 skill/知识目录结构 |
-| `planner.py` | 无 | 无——天生框架无关 |
+| `upgrade.py` | 读 `~/.hermes/skills/lessons/` | 把 `LESSONS_DIR` 指向你的教训目录 |
+| `planner.py` / `guardrail.py` | 无 | 无——天生框架无关 |
 
 全部通过 `HERMES_HOME` / `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` 环境变量配置。
 
